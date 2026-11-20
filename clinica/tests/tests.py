@@ -1,7 +1,7 @@
 from django.test import TestCase
 
 from django.utils import timezone
-from .models import Medico, Recepcionista, Paciente, Prontuario, Consulta, StatusConsulta
+from ..models import Medico, Recepcionista, Paciente, Prontuario, Consulta, StatusConsulta
 
 class ClinicaWorkflowTestCase(TestCase):
     
