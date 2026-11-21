@@ -143,6 +143,7 @@ class Consulta(models.Model):
             raise PermissionError("O usuário não possui permissão para cancelar consultas.")
         
         self.status = StatusConsulta.CANCELADA
+        self.observacoes_recepcao = f"Consulta cancelada. Motivo: {motivo}"
         # Se desejar salvar o motivo, você pode criar um campo de texto extra na model para armazená-lo.
         self.save()
 
