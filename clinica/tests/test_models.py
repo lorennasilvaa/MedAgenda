@@ -1,8 +1,10 @@
 from django.test import TestCase
-
 from django.utils import timezone
-from ..models import Medico, Recepcionista, Paciente, Prontuario, Consulta, StatusConsulta
-
+from ..interfaces import IValidadorAcesso
+from ..models import( 
+    Medico, Recepcionista, Paciente, Prontuario, Consulta, StatusConsulta, 
+    UsuarioClinica, AdministradorTI
+)
 class ClinicaWorkflowTestCase(TestCase):
     
     def setUp(self):
@@ -80,3 +82,65 @@ class ClinicaWorkflowTestCase(TestCase):
                 diagnostico="Tentativa Indevida", 
                 prescricao="Nenhuma"
             )
+
+class InterfaceEModelosRBACTestCase(TestCase):
+    def setUp(self):
+        self.recepcionista = Recepcionista.objects.create_user(
+            username="ana_rec",
+            password="123",
+            nome="Ana Paula",
+            cpf="111.111.111-11",
+            cargo=UsuarioClinica.TipoCargo.RECEPCIONISTA,
+        )
+        self.medico = Medico.objects.create_user(
+            username="dr_silva",
+            password="123",
+            nome="Dr. Carlos Silva",
+            cpf="222.222.222-22",
+            cargo=UsuarioClinica.TipoCargo.MEDICO,
+            crm="CRM-RN 1234",
+        )
+        self.admin_ti = AdministradorTI.objects.create_user(
+            username="joao_ti",
+            password="123",
+            nome="João Souza",
+            cpf="333.333.333-33",
+            cargo=UsuarioClinica.TipoCargo.TI,
+        )
+
+    def test_interface_registrada_nos_modelos(self):
+        self.assertTrue(issubclass(UsuarioClinica, IValidadorAcesso))
+        self.assertTrue(issubclass(Recepcionista, IValidadorAcesso))
+        self.assertTrue(issubclass(Medico, IValidadorAcesso))
+        self.assertTrue(issubclass(AdministradorTI, IValidadorAcesso))
+        self.assertIsInstance(self.medico, IValidadorAcesso)
+
+    def test_permissoes_recepcionista(self):
+        self.assertTrue(self.recepcionista.validar_acesso("consulta:agendar"))
+        self.assertTrue(self.recepcionista.validar_acesso("paciente:cadastrar"))
+        self.assertFalse(self.recepcionista.validar_acesso("prontuario:ler"))
+        self.assertFalse(self.recepcionista.validar_acesso("prontuario:escrever"))
+        self.assertFalse(self.recepcionista.validar_acesso("sistema:gerenciar"))
+
+    def test_permissoes_medico(self):
+        self.assertTrue(self.medico.validar_acesso("prontuario:ler"))
+        self.assertTrue(self.medico.validar_acesso("prontuario:escrever"))
+        self.assertTrue(self.medico.validar_acesso("consulta:visualizar"))
+        self.assertFalse(self.medico.validar_acesso("consulta:agendar"))
+        self.assertFalse(self.medico.validar_acesso("sistema:gerenciar"))
+        self.assertEqual(self.medico.crm, "CRM-RN 1234")
+
+    def test_permissoes_administrador_ti(self):
+        self.assertTrue(self.admin_ti.validar_acesso("sistema:gerenciar"))
+        self.assertTrue(self.admin_ti.validar_acesso("auditoria:ler"))
+        self.assertFalse(self.admin_ti.validar_acesso("prontuario:ler"))
+        self.assertFalse(self.admin_ti.validar_acesso("consulta:agendar"))
+
+    def test_usuario_base_sem_subclasse_levanta_erro_em_obter_permissoes(self):
+        usuario_base = UsuarioClinica.objects.create_user(
+            username="base_user",
+            password="123",
+            nome="Usuário Base",
+            cpf="444.444.444-44",
+        )
+        self.assertEqual(usuario_base.obter_permissoes(), set())
