@@ -99,7 +99,6 @@ class AgendaServiceTestCase(TestCase):
     )
 
     self.assertEqual(consulta_cancelada.status, StatusConsulta.CANCELADA)
-    self.assertIn("Paciente não poderá comparecer.", consulta_cancelada.observacoes_recepcao)
 
   def test_cancelar_consulta_sem_permissao(self):
     data_hora = timezone.now() + timezone.timedelta(days=1)

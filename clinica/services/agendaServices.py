@@ -1,3 +1,4 @@
+from pathlib import Path
 from datetime import datetime
 from django.utils import timezone
 from ..models import (
@@ -7,6 +8,7 @@ from ..models import (
     Consulta,
     StatusConsulta,
 )
+from .services import AuditoriaService
 
 
 class AgendaService:
@@ -14,16 +16,28 @@ class AgendaService:
     Camada de serviço responsável pelas regras operacionais de agendamento,
     cancelamento e consulta da agenda médica com controle RBAC.
     """
+    
+    def __init__(self, auditoria_service=None, caminho_log: str = "logs.log"):
+        self.auditoria = auditoria_service or AuditoriaService()
+        self.caminho_log = Path(caminho_log)
 
-    @staticmethod
-    def _resolver_medico(usuario: UsuarioClinica) -> Medico:
+    def _exigir_permissao(self, ator: UsuarioClinica, permissao: str, acao_descrita: str) -> None:
+        if not ator or not ator.validar_acesso(permissao):
+            self.auditoria.registrar_log(
+                evento=f"ACESSO NEGADO ({permissao}) ao tentar: {acao_descrita}",
+                usuario=ator,
+            )
+            raise PermissionError(
+                f"O usuário não possui a permissão '{permissao}' para {acao_descrita}."
+            )
+        
+    def _resolver_medico(self, usuario: UsuarioClinica | Medico) -> Medico:
         if isinstance(usuario, Medico):
             return usuario
         if usuario.cargo == UsuarioClinica.TipoCargo.MEDICO:
             return Medico.objects.get(pk=usuario.pk)
         raise ValueError("O usuário informado não possui perfil de médico.")
 
-    @staticmethod
     def agendar_consulta(
         self,
         usuario: UsuarioClinica,
@@ -58,7 +72,6 @@ class AgendaService:
         consulta.save()
         return consulta
 
-    @staticmethod
     def cancelar_consulta(
         self,
         usuario: UsuarioClinica,
@@ -74,7 +87,6 @@ class AgendaService:
         consulta.cancelar(usuario=usuario, motivo=motivo)
         return consulta
 
-    @staticmethod
     def listar_agenda_medico(
         self,
         usuario: UsuarioClinica,
@@ -89,7 +101,6 @@ class AgendaService:
         medico_obj = self._resolver_medico(medico)
         return Consulta.objects.filter(medico=medico_obj).order_by("data_hora")
 
-    @staticmethod
     def concluir_atendimento(
         self,
         usuario: UsuarioClinica,
