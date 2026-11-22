@@ -1,6 +1,6 @@
 from datetime import datetime
 from django.utils import timezone
-from .models import (
+from ..models import (
     UsuarioClinica,
     Medico,
     Paciente,
@@ -23,6 +23,7 @@ class AgendaService:
             return Medico.objects.get(pk=usuario.pk)
         raise ValueError("O usuário informado não possui perfil de médico.")
 
+    @staticmethod
     def agendar_consulta(
         self,
         usuario: UsuarioClinica,
@@ -57,6 +58,7 @@ class AgendaService:
         consulta.save()
         return consulta
 
+    @staticmethod
     def cancelar_consulta(
         self,
         usuario: UsuarioClinica,
@@ -72,6 +74,7 @@ class AgendaService:
         consulta.cancelar(usuario=usuario, motivo=motivo)
         return consulta
 
+    @staticmethod
     def listar_agenda_medico(
         self,
         usuario: UsuarioClinica,
@@ -86,6 +89,7 @@ class AgendaService:
         medico_obj = self._resolver_medico(medico)
         return Consulta.objects.filter(medico=medico_obj).order_by("data_hora")
 
+    @staticmethod
     def concluir_atendimento(
         self,
         usuario: UsuarioClinica,
