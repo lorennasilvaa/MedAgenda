@@ -1,3 +1,5 @@
+from pathlib import Path
+import tempfile
 from django.test import TestCase
 from django.utils import timezone
 from ..interfaces import IValidadorAcesso
@@ -5,9 +7,18 @@ from ..models import(
     Medico, Recepcionista, Paciente, Prontuario, Consulta, StatusConsulta, 
     UsuarioClinica, AdministradorTI
 )
+from ..services.services import AuditoriaService
+
 class ClinicaWorkflowTestCase(TestCase):
     
     def setUp(self):
+        self.temp_dir = tempfile.TemporaryDirectory()
+        self.log_path = Path(self.temp_dir.name) / "test_auditoria.log"
+
+        # Garante que o AuditoriaService escreva no arquivo temporário deste teste
+        self.auditoria = AuditoriaService()
+        self.auditoria.caminho_log = str(self.log_path)
+
         # criando um usuário medico
         self.medico = Medico.objects.create_user(
             username="drhouse",
@@ -85,6 +96,13 @@ class ClinicaWorkflowTestCase(TestCase):
 
 class InterfaceEModelosRBACTestCase(TestCase):
     def setUp(self):
+        self.temp_dir = tempfile.TemporaryDirectory()
+        self.log_path = Path(self.temp_dir.name) / "test_auditoria.log"
+
+        # Garante que o AuditoriaService escreva no arquivo temporário deste teste
+        self.auditoria = AuditoriaService()
+        self.auditoria.caminho_log = str(self.log_path)
+
         self.recepcionista = Recepcionista.objects.create_user(
             username="ana_rec",
             password="123",

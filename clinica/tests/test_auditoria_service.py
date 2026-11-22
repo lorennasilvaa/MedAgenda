@@ -1,3 +1,5 @@
+from pathlib import Path
+import tempfile
 from unittest.mock import patch
 from django.test import TestCase
 from django.utils import timezone
@@ -8,6 +10,13 @@ from clinica.services.services import AuditoriaService
 class AuditoriaWorkflowTestCase(TestCase):
     
     def setUp(self):
+        self.temp_dir = tempfile.TemporaryDirectory()
+        self.log_path = Path(self.temp_dir.name) / "test_auditoria.log"
+
+        # Garante que o AuditoriaService escreva no arquivo temporário deste teste
+        self.auditoria = AuditoriaService()
+        self.auditoria.caminho_log = str(self.log_path)
+
         # configura dados básicos para os testes
         self.medico = Medico.objects.create_user(
             username="drhouse",
