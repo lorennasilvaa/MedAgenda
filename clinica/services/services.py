@@ -10,8 +10,9 @@ class AuditoriaService:
     def registrar_log(evento: str, usuario=None) -> None:
         timestamp = timezone.now().strftime("%Y-%m-%d %H:%M:%S")
         username = usuario.username if usuario else "anônimo"
+        cargo = getattr(usuario, "cargo", "SEM_CARGO") if usuario else "N/A"
 
-        mensagem_log = f"[{timestamp}] [AUDITORIA] Usuário: {username} - Evento: {evento}"
+        mensagem_log = f"[{timestamp}] [AUDITORIA] Usuário: {username} ({cargo}) - Evento: {evento}"
 
         # grava no log oficial do django - console ou arquivo
         logger.info(mensagem_log)
