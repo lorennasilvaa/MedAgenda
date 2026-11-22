@@ -1,6 +1,7 @@
 from django.db import models
 from django.contrib.auth.models import AbstractUser
 from .interfaces import IValidadorAcesso
+from .services.services import AuditoriaService
 
 import uuid
 
@@ -87,6 +88,9 @@ class Prontuario(models.Model):
         if alergia and alergia not in self.alergias:
             self.alergias.append(alergia)
             self.save()
+
+        # adiciona log 
+        AuditoriaService.registrar_log(evento=f"Alergia {alergia} adicionada ao prontuário: {self.id}.", usuario=usuario)
     
 class Paciente(models.Model):
     nome = models.CharField(max_length=255)
@@ -147,6 +151,9 @@ class Consulta(models.Model):
         # Se desejar salvar o motivo, você pode criar um campo de texto extra na model para armazená-lo.
         self.save()
 
+        # registrar log
+        AuditoriaService.registrar_log(evento=f"Consulta cancelada. Médico responsável: {self.medico}. Paciente: {self.paciente}. Motivo: {motivo}", usuario=usuario)
+
     # finaliza o atendimento registrando o diagnóstico e a prescrição no prontuario
     def finalizar_atendimento(self, medico: Medico, diagnostico: str, prescricao: str) -> None:
         # Valida se o usuário logado é um médico e tem permissão de escrita
@@ -163,6 +170,9 @@ class Consulta(models.Model):
                 diagnostico=diagnostico,
                 prescricao=prescricao
             )
+
+        # registra log
+        AuditoriaService.registrar_log(evento=f"Atendimento finalizado. Médico responsável: {self.medico}. Paciente: {self.paciente}.", usuario=medico)
 
     # retorna um resumo administrativo da consulta
     def get_resumo_administrativo(self) -> str:
