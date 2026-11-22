@@ -1,19 +1,26 @@
 from pathlib import Path
-from ..models import UsuarioClinica
+from datetime import datetime
+from django.utils import timezone
+from ..models import (
+    UsuarioClinica,
+    Medico,
+    Paciente,
+    Consulta,
+    StatusConsulta,
+)
 from .services import AuditoriaService
 
 
 class SistemaService:
     """
-    Camada de serviço voltada à administração técnica do sistema,
-    controlada pelas permissões 'sistema:gerenciar' e 'auditoria:ler'.
+    Camada de serviço responsável pelas regras operacionais de agendamento,
+    cancelamento e consulta da agenda médica com controle RBAC e auditoria.
     """
 
-    def __init__(self, auditoria_service=None, caminho_log: str = "logs.log"):
+    def __init__(self, auditoria_service: AuditoriaService | None = None, caminho_log: str = "logs.log"):
         self.auditoria = auditoria_service or AuditoriaService()
         self.caminho_log = Path(caminho_log)
 
-    
     def _exigir_permissao(self, ator: UsuarioClinica, permissao: str, acao_descrita: str) -> None:
         if not ator or not ator.validar_acesso(permissao):
             self.auditoria.registrar_log(
@@ -24,77 +31,123 @@ class SistemaService:
                 f"O usuário não possui a permissão '{permissao}' para {acao_descrita}."
             )
 
-    
-    def alterar_cargo_usuario(
+    def _resolver_medico(self, usuario: UsuarioClinica | Medico) -> Medico:
+        if isinstance(usuario, Medico):
+            return usuario
+        if usuario.cargo == UsuarioClinica.TipoCargo.MEDICO:
+            return Medico.objects.get(pk=usuario.pk)
+        raise ValueError("O usuário informado não possui perfil de médico.")
+
+    def agendar_consulta(
         self,
-        ator: UsuarioClinica,
-        alvo: UsuarioClinica,
-        novo_cargo: str,
-        crm: str | None = None,
-    ) -> UsuarioClinica:
-        self._exigir_permissao(ator, "sistema:gerenciar", "alterar cargo de usuário")
+        usuario: UsuarioClinica,
+        paciente: Paciente,
+        medico: UsuarioClinica | Medico,
+        data_hora: datetime,
+        observacoes_recepcao: str | None = None,
+    ) -> Consulta:
+        self._exigir_permissao(usuario, "consulta:agendar", "agendar consulta")
 
-        cargos_validos = {escolha[0] for escolha in UsuarioClinica.TipoCargo.choices}
-        if novo_cargo not in cargos_validos:
-            raise ValueError(f"Cargo inválido: {novo_cargo}")
+        if data_hora <= timezone.now():
+            raise ValueError("Não é possível agendar consultas em datas ou horários passados.")
 
-        cargo_anterior = alvo.cargo
-        alvo.cargo = novo_cargo
+        medico_obj = self._resolver_medico(medico)
 
-        if novo_cargo == UsuarioClinica.TipoCargo.MEDICO:
-            if crm:
-                alvo.crm = crm
-            elif not alvo.crm:
-                raise ValueError("Médicos exigem um CRM informado.")
+        conflito = Consulta.objects.filter(
+            medico=medico_obj,
+            data_hora=data_hora,
+            status=StatusConsulta.AGENDADA,
+        ).exists()
+        if conflito:
+            raise ValueError("O médico já possui uma consulta agendada neste horário.")
 
-        alvo.save()
+        consulta = Consulta(
+            paciente=paciente,
+            medico=medico_obj,
+            data_hora=data_hora,
+            observacoes_recepcao=observacoes_recepcao,
+            status=StatusConsulta.AGENDADA,
+        )
+        consulta.save()
 
         self.auditoria.registrar_log(
             evento=(
-                f"Cargo do usuário '{alvo.username}' alterado de {cargo_anterior} "
-                f"para {novo_cargo}"
+                f"Consulta #{consulta.pk} agendada para paciente '{paciente.nome}' "
+                f"com Dr(a). '{medico_obj.nome}' em {data_hora.isoformat()}"
             ),
-            usuario=ator,
+            usuario=usuario,
         )
-        return alvo
+        return consulta
 
-    
-    def alterar_status_usuario(
+    def cancelar_consulta(
         self,
-        ator: UsuarioClinica,
-        alvo: UsuarioClinica,
-        ativo: bool,
-    ) -> UsuarioClinica:
-        self._exigir_permissao(ator, "sistema:gerenciar", "alterar status de conta")
+        usuario: UsuarioClinica,
+        consulta: Consulta,
+        motivo: str = "",
+    ) -> Consulta:
+        self._exigir_permissao(usuario, "consulta:agendar", f"cancelar consulta #{consulta.pk}")
 
-        if ator.pk == alvo.pk and not ativo:
-            raise ValueError("Não é permitido desativar a própria conta de administrador.")
+        if consulta.status == StatusConsulta.REALIZADA:
+            raise ValueError("Não é possível cancelar uma consulta já realizada.")
 
-        alvo.is_active = ativo
-        alvo.save()
+        consulta.cancelar(usuario=usuario, motivo=motivo)
 
-        estado = "ATIVADA" if ativo else "DESATIVADA"
+        detalhe_motivo = f" | Motivo: {motivo}" if motivo else ""
         self.auditoria.registrar_log(
-            evento=f"Conta do usuário '{alvo.username}' {estado}",
-            usuario=ator,
+            evento=f"Consulta #{consulta.pk} cancelada{detalhe_motivo}",
+            usuario=usuario,
         )
-        return alvo
+        return consulta
 
-    
-    def ler_logs_auditoria(self, ator: UsuarioClinica, limite: int = 100) -> list[str]:
-        self._exigir_permissao(ator, "auditoria:ler", "ler logs de auditoria")
+    def listar_agenda_medico(
+        self,
+        usuario: UsuarioClinica,
+        medico: UsuarioClinica | Medico,
+    ):
+        if not (
+            usuario
+            and (
+                usuario.validar_acesso("consulta:visualizar")
+                or usuario.validar_acesso("consulta:agendar")
+            )
+        ):
+            self.auditoria.registrar_log(
+                evento="ACESSO NEGADO (consulta:visualizar / consulta:agendar) ao tentar: listar agenda médica",
+                usuario=usuario,
+            )
+            raise PermissionError("O usuário não possui permissão para visualizar a agenda.")
 
-        if limite <= 0:
-            raise ValueError("O limite de linhas deve ser maior que zero.")
+        medico_obj = self._resolver_medico(medico)
+        self.auditoria.registrar_log(
+            evento=f"Visualizou a agenda de Dr(a). '{medico_obj.nome}'",
+            usuario=usuario,
+        )
+        return Consulta.objects.filter(medico=medico_obj).order_by("data_hora")
 
-        if not self.caminho_log.exists():
-            return []
+    def concluir_atendimento(
+        self,
+        usuario: UsuarioClinica,
+        consulta: Consulta,
+        diagnostico: str,
+        prescricao: str,
+    ) -> Consulta:
+        medico_obj = self._resolver_medico(usuario)
 
-        with self.caminho_log.open("r", encoding="utf-8") as arquivo:
-            linhas = [linha.rstrip("\n") for linha in arquivo if linha.strip()]
+        if consulta.medico_id != medico_obj.pk:
+            self.auditoria.registrar_log(
+                evento=f"ACESSO NEGADO ao tentar concluir consulta #{consulta.pk} de outro médico",
+                usuario=usuario,
+            )
+            raise PermissionError("Apenas o médico responsável pela consulta pode finalizá-la.")
+
+        consulta.finalizar_atendimento(
+            medico=medico_obj,
+            diagnostico=diagnostico,
+            prescricao=prescricao,
+        )
 
         self.auditoria.registrar_log(
-            evento=f"Consultou os últimos {min(limite, len(linhas))} registros de auditoria",
-            usuario=ator,
+            evento=f"Atendimento da consulta #{consulta.pk} concluído e registrado no prontuário",
+            usuario=usuario,
         )
-        return linhas[-limite:]
+        return consulta
