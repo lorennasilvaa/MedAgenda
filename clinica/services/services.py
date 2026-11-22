@@ -21,5 +21,5 @@ class AuditoriaService:
             with open("logs.log", "a", encoding="utf-8") as arquivo:
                 arquivo.write(mensagem_log + "\n")
         except Exception as e:
-            logger.error("erro ao salvar arquivo de log: {e}")
+            logger.error(f"erro ao salvar arquivo de log: {e}")
 
