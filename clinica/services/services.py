@@ -11,7 +11,7 @@ class AuditoriaService:
         timestamp = timezone.now().strftime("%Y-%m-%d %H:%M:%S")
         username = usuario.username if usuario else "anônimo"
 
-        mensagem_log = f"[{timestamp}] [AUDITORIA] Usuário: {usuario} - Evento: {evento}"
+        mensagem_log = f"[{timestamp}] [AUDITORIA] Usuário: {username} - Evento: {evento}"
 
         # grava no log oficial do django - console ou arquivo
         logger.info(mensagem_log)
