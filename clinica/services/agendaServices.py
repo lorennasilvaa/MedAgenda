@@ -23,6 +23,28 @@ class AgendaService:
             return Medico.objects.get(pk=usuario.pk)
         raise ValueError("O usuário informado não possui perfil de médico.")
 
+    def cadastrar_paciente(
+        self,
+        usuario: UsuarioClinica,
+        nomePaciente: str,
+        cpf: str,
+        telefone: str
+    ) -> Paciente:
+        if not usuario.validar_acesso("paciente:cadastrar"):
+            raise PermissionError("O usuário não possui permissão para cadastrar pacientes.")
+
+        conflito = Paciente.objects.filter(
+                nome=nomePaciente,
+                cpf=cpf,
+                telefone=telefone
+            ).exists()
+        if conflito:
+            raise ValueError("O paciente já está cadastrado.")
+
+        paciente = Paciente.cadastrar_paciente(nome=nomePaciente, cpf=cpf, telefone=telefone)
+
+        return paciente
+
     @staticmethod
     def agendar_consulta(
         self,
@@ -97,6 +119,9 @@ class AgendaService:
         diagnostico: str,
         prescricao: str,
     ) -> Consulta:
+        if not usuario.validar_acesso("prontuario:escrever"):
+            raise PermissionError("O usuário não possui permissão para escrever no prontuário.")
+        
         medico_obj = self._resolver_medico(usuario)
 
         if consulta.medico_id != medico_obj.pk:

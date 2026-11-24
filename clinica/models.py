@@ -112,6 +112,15 @@ class Paciente(models.Model):
     def get_prontuario(self) -> Prontuario:
         return self.prontuario
 
+    @staticmethod
+    def cadastrar_paciente(nome, cpf, telefone) -> Paciente:
+        # Cria um prontuário para o novo paciente
+        prontuario = Prontuario.objects.create()
+        prontuario.save()
+        paciente = Paciente.objects.create(nome=nome, cpf=cpf, telefone=telefone, prontuario=prontuario)
+        paciente.save()
+        return paciente
+
 class StatusConsulta(models.TextChoices):
     AGENDADA = 'AGENDADA', 'Agendada'
     REALIZADA = 'REALIZADA', 'Realizada'
