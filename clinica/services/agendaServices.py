@@ -45,8 +45,7 @@ class AgendaService:
         cpf: str,
         telefone: str
     ) -> Paciente:
-        if not usuario.validar_acesso("paciente:cadastrar"):
-            raise PermissionError("O usuário não possui permissão para cadastrar pacientes.")
+        self._exigir_permissao(usuario, "paciente:cadastrar", "cadastrar paciente")
 
         conflito = Paciente.objects.filter(
                 nome=nomePaciente,
@@ -68,8 +67,7 @@ class AgendaService:
         data_hora: datetime,
         observacoes_recepcao: str | None = None,
     ) -> Consulta:
-        if not usuario.validar_acesso("consulta:agendar"):
-            raise PermissionError("O usuário não possui permissão para agendar consultas.")
+        self._exigir_permissao(usuario, "consulta:agendar", "agendar consulta")
 
         if data_hora <= timezone.now():
             raise ValueError("Não é possível agendar consultas em datas ou horários passados.")
@@ -100,8 +98,7 @@ class AgendaService:
         consulta: Consulta,
         motivo: str = "",
     ) -> Consulta:
-        if not usuario.validar_acesso("consulta:agendar"):
-            raise PermissionError("O usuário não possui permissão para cancelar consultas.")
+        self._exigir_permissao(usuario, "consulta:cancelar", "cancelar consulta")
 
         if consulta.status == StatusConsulta.REALIZADA:
             raise ValueError("Não é possível cancelar uma consulta já realizada.")
@@ -114,11 +111,7 @@ class AgendaService:
         usuario: UsuarioClinica,
         medico: UsuarioClinica | Medico,
     ):
-        if not (
-            usuario.validar_acesso("consulta:visualizar")
-            or usuario.validar_acesso("consulta:agendar")
-        ):
-            raise PermissionError("O usuário não possui permissão para visualizar a agenda.")
+        self._exigir_permissao(usuario, "consulta:visualizar", "visualizar agenda")
 
         medico_obj = self._resolver_medico(medico)
         return Consulta.objects.filter(medico=medico_obj).order_by("data_hora")
@@ -130,9 +123,12 @@ class AgendaService:
         diagnostico: str,
         prescricao: str,
     ) -> Consulta:
-        if not usuario.validar_acesso("prontuario:escrever"):
-            raise PermissionError("O usuário não possui permissão para escrever no prontuário.")
-        
+        self._exigir_permissao(
+            usuario, 
+            ["consulta:concluir", "prontuario:escrever"], 
+            f"concluir atendimento da consulta #{consulta.pk}"
+        )
+
         medico_obj = self._resolver_medico(usuario)
 
         if consulta.medico_id != medico_obj.pk:
@@ -144,3 +140,48 @@ class AgendaService:
             prescricao=prescricao,
         )
         return consulta
+
+    def get_resumo_administrativo_consulta(
+        self,
+        usuario: UsuarioClinica,
+        consulta: Consulta,
+    ) -> str:
+        self._exigir_permissao(
+            usuario, 
+            "consulta:visualizar", 
+            f"visualizar resumo administrativo da consulta #{consulta.pk}"
+        )
+
+        return consulta.get_resumo_administrativo()
+
+    def get_detalhamento_consulta(
+        self,
+        usuario: UsuarioClinica,
+        consulta: Consulta,
+    ) -> dict:
+        self._exigir_permissao(
+            usuario, 
+            "consulta:visualizar", 
+            f"visualizar detalhamento da consulta #{consulta.pk}"
+        )
+
+        return {
+            "id": consulta.id,
+            "paciente": {
+                "nome": consulta.paciente.nome,
+                "cpf": consulta.paciente.cpf,
+                "telefone": consulta.paciente.telefone,
+                "prontuario": {
+                    "id": consulta.paciente.prontuario.id if consulta.paciente.prontuario else None,
+                    "historico": consulta.paciente.prontuario.ler_historico() if consulta.paciente.prontuario else None,
+                    "alergias": consulta.paciente.prontuario.ler_alergias() if consulta.paciente.prontuario else None
+                } if consulta.paciente.prontuario else None,
+            },
+            "medico": {
+                "nome": consulta.medico.nome,
+                "especialidade": consulta.medico.especialidade,
+            },
+            "data_hora": consulta.data_hora.isoformat(),
+            "observacoes_recepcao": consulta.observacoes_recepcao,
+            "status": consulta.status,
+        }

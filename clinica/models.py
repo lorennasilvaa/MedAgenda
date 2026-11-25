@@ -69,6 +69,11 @@ class Prontuario(models.Model):
             raise PermissionError("O usuário não possui permissão para ler o prontuário.")
         return self.historico_diagnosticos
 
+    def ler_alergias(self, usuario: UsuarioClinica) -> list:
+        if not usuario.validar_acesso("prontuario:ler"):
+            raise PermissionError("O usuário não possui permissão para ler as alergias do prontuário.")
+        return self.alergias
+
     # Registra um atendimento adicionando diagnóstico e prescrição
     def registrar_atendimento(self, usuario: UsuarioClinica, diagnostico: str, prescricao: str) -> None:
         if not usuario.validar_acesso("prontuario:escrever"):
