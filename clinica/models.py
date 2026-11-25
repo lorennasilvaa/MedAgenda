@@ -69,6 +69,11 @@ class Prontuario(models.Model):
             raise PermissionError("O usuário não possui permissão para ler o prontuário.")
         return self.historico_diagnosticos
 
+    def ler_alergias(self, usuario: UsuarioClinica) -> list:
+        if not usuario.validar_acesso("prontuario:ler"):
+            raise PermissionError("O usuário não possui permissão para ler as alergias do prontuário.")
+        return self.alergias
+
     # Registra um atendimento adicionando diagnóstico e prescrição
     def registrar_atendimento(self, usuario: UsuarioClinica, diagnostico: str, prescricao: str) -> None:
         if not usuario.validar_acesso("prontuario:escrever"):
@@ -111,6 +116,15 @@ class Paciente(models.Model):
     # Retorna o prontuário associado a este paciente
     def get_prontuario(self) -> Prontuario:
         return self.prontuario
+
+    @staticmethod
+    def cadastrar_paciente(nome, cpf, telefone) -> Paciente:
+        # Cria um prontuário para o novo paciente
+        prontuario = Prontuario.objects.create()
+        prontuario.save()
+        paciente = Paciente.objects.create(nome=nome, cpf=cpf, telefone=telefone, prontuario=prontuario)
+        paciente.save()
+        return paciente
 
 class StatusConsulta(models.TextChoices):
     AGENDADA = 'AGENDADA', 'Agendada'

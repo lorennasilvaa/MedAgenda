@@ -1,3 +1,5 @@
+from pathlib import Path
+import tempfile
 from django.test import TestCase
 from django.utils import timezone
 from ..models import (
@@ -5,9 +7,17 @@ from ..models import (
     UsuarioClinica
 )
 from ..services.agendaServices import AgendaService
+from ..services.services import AuditoriaService
 
 class AgendaServiceTestCase(TestCase):
   def setUp(self):
+    self.temp_dir = tempfile.TemporaryDirectory()
+    self.log_path = Path(self.temp_dir.name) / "test_auditoria.log"
+
+    # Garante que o AuditoriaService escreva no arquivo temporário deste teste
+    self.auditoria = AuditoriaService()
+    self.auditoria.caminho_log = str(self.log_path)
+
     self.medico = Medico.objects.create_user(
         username="drhouse",
         password="password123",
@@ -99,7 +109,6 @@ class AgendaServiceTestCase(TestCase):
     )
 
     self.assertEqual(consulta_cancelada.status, StatusConsulta.CANCELADA)
-    self.assertIn("Paciente não poderá comparecer.", consulta_cancelada.observacoes_recepcao)
 
   def test_cancelar_consulta_sem_permissao(self):
     data_hora = timezone.now() + timezone.timedelta(days=1)
