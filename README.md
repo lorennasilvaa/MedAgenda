@@ -54,6 +54,23 @@ Execute os comandos
     python manage.py makemigrations
     python manage.py migrate
     ```
+
+Crie usuários para utilizar o sistema:
+
+_Comandos para Linux, retire o sudo para utilizar no windows_
+
+- Médico
+  ```bash
+  sudo docker compose exec web python manage.py shell -c "from clinica.models import UsuarioClinica; u, _ = UsuarioClinica.objects.get_or_create(username='med_teste', defaults={'nome': 'Medico', 'cpf': '000.000.000-11', 'cargo': UsuarioClinica.TipoCargo.MEDICO}); u.set_password('123456'); u.save()"
+  ```
+- Recepcionista
+  ```bash
+  sudo docker compose exec web python manage.py shell -c "from clinica.models import UsuarioClinica; u, _ = UsuarioClinica.objects.get_or_create(username='rec_teste', defaults={'nome': 'Recepcionista', 'cpf': '000.000.000-10', 'cargo': UsuarioClinica.TipoCargo.RECEPCIONISTA}); u.set_password('123456'); u.save()"
+  ```
+- Administrador/TI
+  ```bash
+  sudo docker compose exec web python manage.py shell -c "from clinica.models import UsuarioClinica; u, _ = UsuarioClinica.objects.get_or_create(username='ti_teste', defaults={'nome': 'Admin TI', 'cpf': '000.000.000-00', 'cargo': UsuarioClinica.TipoCargo.TI}); u.set_password('123456'); u.save()"
+  ```
 ## Executando os testes
 
 Em processo...
