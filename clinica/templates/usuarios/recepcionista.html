@@ -1,9 +1,213 @@
-{% extends "base/base.html" %}
+{% extends 'base/base.html' %}
 
-{% block title %}Recepcionista - MedAgenda RBAC{% endblock %}
+{% block title %}Painel da Recepcionista - MedAgenda RBAC{% endblock %}
 
 {% block content %}
-<div>
-  Em desenvolvimento...
+<div class="row mb-4">
+    <div class="col-12">
+        <div class="p-4 bg-white rounded-3 shadow-sm border d-flex flex-column flex-md-row justify-content-between align-items-md-center gap-3">
+            <div>
+                <h1 class="h3 fw-bold text-dark mb-1">Painel da Recepção</h1>
+                <p class="text-muted mb-0">
+                    Olá, <strong>{{ ator.nome }}</strong> (CPF: {{ ator.cpf }}). Gerencie pacientes e agendamentos da clínica.
+                </p>
+            </div>
+            <div class="d-flex gap-2">
+                <button type="button" class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#modalCadastrarPaciente">
+                    + Cadastrar Paciente
+                </button>
+                <button type="button" class="btn btn-success" data-bs-toggle="modal" data-bs-target="#modalAgendarConsulta">
+                    + Agendar Consulta
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Tabela de Consultas -->
+<div class="row">
+    <div class="col-12">
+        <div class="card shadow-sm border-0">
+            <div class="card-header bg-white py-3 d-flex justify-content-between align-items-center">
+                <h5 class="mb-0 fw-semibold text-secondary">Consultas Agendadas</h5>
+                <span class="badge bg-light text-dark border">Total: {{ consultas|length }}</span>
+            </div>
+            <div class="card-body p-0">
+                <div class="table-responsive">
+                    <table class="table table-hover align-middle mb-0">
+                        <thead class="table-light">
+                            <tr>
+                                <th class="ps-3">Paciente</th>
+                                <th>Médico (CRM)</th>
+                                <th>Data e Hora</th>
+                                <th>Observações</th>
+                                <th>Status</th>
+                                <th class="text-end pe-3">Ações</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for consulta in consultas %}
+                            <tr>
+                                <td class="ps-3">
+                                    <div class="fw-semibold">{{ consulta.paciente.nome }}</div>
+                                    <small class="text-muted">CPF: {{ consulta.paciente.cpf }}</small>
+                                </td>
+                                <td>
+                                    <div>Dr(a). {{ consulta.medico.nome }}</div>
+                                    {% if consulta.medico.crm %}
+                                        <small class="text-muted">CRM: {{ consulta.medico.crm }}</small>
+                                    {% endif %}
+                                </td>
+                                <td>{{ consulta.data_hora|date:"d/m/Y H:i" }}</td>
+                                <td>
+                                    <span class="text-muted small">{{ consulta.observacoes_recepcao|default:"-"|truncatechars:40 }}</span>
+                                </td>
+                                <td>
+                                    {% if consulta.status == 'AGENDADA' %}
+                                        <span class="badge bg-warning text-dark">{{ consulta.get_status_display }}</span>
+                                    {% elif consulta.status == 'REALIZADA' %}
+                                        <span class="badge bg-success">{{ consulta.get_status_display }}</span>
+                                    {% elif consulta.status == 'CANCELADA' %}
+                                        <span class="badge bg-danger">{{ consulta.get_status_display }}</span>
+                                    {% endif %}
+                                </td>
+                                <td class="text-end pe-3">
+                                    {% if consulta.status == 'AGENDADA' %}
+                                        <button type="button" class="btn btn-sm btn-outline-danger" data-bs-toggle="modal" data-bs-target="#modalCancelarConsulta{{ consulta.id }}">
+                                            Cancelar
+                                        </button>
+
+                                        <!-- Modal de Cancelamento Específico da Consulta -->
+                                        <div class="modal fade text-start" id="modalCancelarConsulta{{ consulta.id }}" tabindex="-1" aria-hidden="true">
+                                            <div class="modal-dialog">
+                                                <div class="modal-content">
+                                                    <form method="post" action="{% url 'painel_recepcionista' %}">
+                                                        {% csrf_token %}
+                                                        <input type="hidden" name="acao" value="cancelar_consulta">
+                                                        <input type="hidden" name="consulta_id" value="{{ consulta.id }}">
+                                                        <div class="modal-header">
+                                                            <h5 class="modal-title">Cancelar Consulta</h5>
+                                                            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fechar"></button>
+                                                        </div>
+                                                        <div class="modal-body">
+                                                            <p class="small text-muted">
+                                                                Você está cancelando a consulta de <strong>{{ consulta.paciente.nome }}</strong> com <strong>Dr(a). {{ consulta.medico.nome }}</strong>.
+                                                            </p>
+                                                            <div class="mb-3">
+                                                                <label for="motivo{{ consulta.id }}" class="form-label fw-semibold">Motivo do Cancelamento *</label>
+                                                                <textarea class="form-control" id="motivo{{ consulta.id }}" name="motivo" rows="3" required placeholder="Informe o motivo para registro na auditoria..."></textarea>
+                                                            </div>
+                                                        </div>
+                                                        <div class="modal-footer">
+                                                            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Voltar</button>
+                                                            <button type="submit" class="btn btn-danger">Confirmar Cancelamento</button>
+                                                        </div>
+                                                    </form>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    {% else %}
+                                        <span class="text-muted small">—</span>
+                                    {% endif %}
+                                </td>
+                            </tr>
+                            {% empty %}
+                            <tr>
+                                <td colspan="6" class="text-center py-4 text-muted">
+                                    Nenhuma consulta registrada no sistema.
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal: Cadastrar Paciente -->
+<div class="modal fade" id="modalCadastrarPaciente" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <form method="post" action="{% url 'painel_recepcionista' %}">
+                {% csrf_token %}
+                <input type="hidden" name="acao" value="cadastrar_paciente">
+                <div class="modal-header">
+                    <h5 class="modal-title fw-semibold">Cadastrar Novo Paciente</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fechar"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label for="nome_paciente" class="form-label fw-semibold">Nome Completo *</label>
+                        <input type="text" class="form-control" id="nome_paciente" name="nome" maxlength="255" required>
+                    </div>
+                    <div class="mb-3">
+                        <label for="cpf_paciente" class="form-label fw-semibold">CPF *</label>
+                        <input type="text" class="form-control" id="cpf_paciente" name="cpf" maxlength="14" placeholder="000.000.000-00" required>
+                    </div>
+                    <div class="mb-3">
+                        <label for="telefone_paciente" class="form-label fw-semibold">Telefone</label>
+                        <input type="text" class="form-control" id="telefone_paciente" name="telefone" maxlength="20" placeholder="(00) 00000-0000">
+                    </div>
+                    <div class="alert alert-info small mb-0">
+                        Um prontuário único (UUID) será gerado automaticamente para este paciente.
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                    <button type="submit" class="btn btn-primary">Salvar Paciente</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- Modal: Agendar Consulta -->
+<div class="modal fade" id="modalAgendarConsulta" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <form method="post" action="{% url 'painel_recepcionista' %}">
+                {% csrf_token %}
+                <input type="hidden" name="acao" value="agendar_consulta">
+                <div class="modal-header">
+                    <h5 class="modal-title fw-semibold">Agendar Nova Consulta</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fechar"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label for="paciente_id" class="form-label fw-semibold">Paciente *</label>
+                        <select class="form-select" id="paciente_id" name="paciente_id" required>
+                            <option value="" selected disabled>Selecione um paciente...</option>
+                            {% for paciente in pacientes %}
+                                <option value="{{ paciente.id }}">{{ paciente.nome }} (CPF: {{ paciente.cpf }})</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label for="medico_id" class="form-label fw-semibold">Médico *</label>
+                        <select class="form-select" id="medico_id" name="medico_id" required>
+                            <option value="" selected disabled>Selecione um médico...</option>
+                            {% for medico in medicos %}
+                                <option value="{{ medico.id }}">Dr(a). {{ medico.nome }} {% if medico.crm %}(CRM: {{ medico.crm }}){% endif %}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label for="data_hora" class="form-label fw-semibold">Data e Hora *</label>
+                        <input type="datetime-local" class="form-control" id="data_hora" name="data_hora" required>
+                    </div>
+                    <div class="mb-3">
+                        <label for="observacoes_recepcao" class="form-label fw-semibold">Observações da Recepção</label>
+                        <textarea class="form-control" id="observacoes_recepcao" name="observacoes_recepcao" rows="2" placeholder="Informações adicionais sobre o agendamento..."></textarea>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                    <button type="submit" class="btn btn-success">Confirmar Agendamento</button>
+                </div>
+            </form>
+        </div>
+    </div>
 </div>
 {% endblock %}
