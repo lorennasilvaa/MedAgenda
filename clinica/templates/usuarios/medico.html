@@ -1,9 +1,186 @@
-{% extends "base/base.html" %}
+{% extends 'base/base.html' %}
 
-{% block title %}Medico - MedAgenda RBAC{% endblock %}
+{% block title %}Painel do Médico - MedAgenda RBAC{% endblock %}
 
 {% block content %}
-<div>
-  Em desenvolvimento...
+<div class="row mb-4">
+    <div class="col-12">
+        <div class="p-4 bg-white rounded-3 shadow-sm border d-flex flex-column flex-md-row justify-content-between align-items-md-center gap-3">
+            <div>
+                <h1 class="h3 fw-bold text-dark mb-1">Painel Médico</h1>
+                <p class="text-muted mb-0">
+                    Dr(a). <strong>{{ ator.nome }}</strong> {% if ator.crm %}| CRM: {{ ator.crm }}{% endif %}
+                </p>
+            </div>
+            <div>
+                <span class="badge bg-dark px-3 py-2">Permissão: Prontuários e Consultas</span>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Listagem de Consultas do Médico -->
+<div class="row">
+    <div class="col-12">
+        <div class="card shadow-sm border-0">
+            <div class="card-header bg-white py-3 d-flex justify-content-between align-items-center">
+                <h5 class="mb-0 fw-semibold text-secondary">Minha Agenda de Pacientes</h5>
+                <span class="badge bg-light text-dark border">Total: {{ consultas|length }}</span>
+            </div>
+            <div class="card-body p-0">
+                <div class="table-responsive">
+                    <table class="table table-hover align-middle mb-0">
+                        <thead class="table-light">
+                            <tr>
+                                <th class="ps-3">Paciente</th>
+                                <th>Data e Hora</th>
+                                <th>Observações da Recepção</th>
+                                <th>Status</th>
+                                <th class="text-end pe-3">Ações Clínicas</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for consulta in consultas %}
+                            <tr>
+                                <td class="ps-3">
+                                    <div class="fw-semibold">{{ consulta.paciente.nome }}</div>
+                                    <small class="text-muted">CPF: {{ consulta.paciente.cpf }} | Tel: {{ consulta.paciente.telefone|default:"Não informado" }}</small>
+                                </td>
+                                <td>{{ consulta.data_hora|date:"d/m/Y H:i" }}</td>
+                                <td>
+                                    <span class="text-muted small">{{ consulta.observacoes_recepcao|default:"Nenhuma observação" }}</span>
+                                </td>
+                                <td>
+                                    {% if consulta.status == 'AGENDADA' %}
+                                        <span class="badge bg-warning text-dark">{{ consulta.get_status_display }}</span>
+                                    {% elif consulta.status == 'REALIZADA' %}
+                                        <span class="badge bg-success">{{ consulta.get_status_display }}</span>
+                                    {% elif consulta.status == 'CANCELADA' %}
+                                        <span class="badge bg-danger">{{ consulta.get_status_display }}</span>
+                                    {% endif %}
+                                </td>
+                                <td class="text-end pe-3">
+                                    <div class="d-flex justify-content-end gap-1">
+                                        <!-- Botão para ver/gerenciar prontuário -->
+                                        <button type="button" class="btn btn-sm btn-outline-primary" data-bs-toggle="modal" data-bs-target="#modalProntuario{{ consulta.id }}">
+                                            Prontuário
+                                        </button>
+
+                                        {% if consulta.status == 'AGENDADA' %}
+                                            <!-- Botão para finalizar atendimento -->
+                                            <button type="button" class="btn btn-sm btn-success" data-bs-toggle="modal" data-bs-target="#modalFinalizar{{ consulta.id }}">
+                                                Atender
+                                            </button>
+                                        {% endif %}
+                                    </div>
+
+                                    <!-- Modal: Visualizar Prontuário e Adicionar Alergia -->
+                                    <div class="modal fade text-start" id="modalProntuario{{ consulta.id }}" tabindex="-1" aria-hidden="true">
+                                        <div class="modal-dialog modal-lg">
+                                            <div class="modal-content">
+                                                <div class="modal-header">
+                                                    <h5 class="modal-title">Prontuário de {{ consulta.paciente.nome }}</h5>
+                                                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fechar"></button>
+                                                </div>
+                                                <div class="modal-body">
+                                                    <div class="mb-3 text-start">
+                                                        <h6 class="text-primary fw-semibold">Histórico de Diagnósticos</h6>
+                                                        <ul class="list-group mb-3">
+                                                            {% for diag in consulta.paciente.prontuario.historico_diagnosticos %}
+                                                                <li class="list-group-item bg-light small">{{ diag }}</li>
+                                                            {% empty %}
+                                                                <li class="list-group-item text-muted small">Nenhum diagnóstico registrado anteriormente.</li>
+                                                            {% endfor %}
+                                                        </ul>
+
+                                                        <h6 class="text-success fw-semibold">Prescrições Anteriores</h6>
+                                                        <ul class="list-group mb-3">
+                                                            {% for presc in consulta.paciente.prontuario.prescricoes %}
+                                                                <li class="list-group-item bg-light small">{{ presc }}</li>
+                                                            {% empty %}
+                                                                <li class="list-group-item text-muted small">Nenhuma prescrição registrada anteriormente.</li>
+                                                            {% endfor %}
+                                                        </ul>
+
+                                                        <h6 class="text-danger fw-semibold">Alergias Registradas</h6>
+                                                        <div class="d-flex flex-wrap gap-1 mb-3">
+                                                            {% for alergia in consulta.paciente.prontuario.alergias %}
+                                                                <span class="badge bg-danger">{{ alergia }}</span>
+                                                            {% empty %}
+                                                                <span class="text-muted small">Nenhuma alergia cadastrada.</span>
+                                                            {% endfor %}
+                                                        </div>
+
+                                                        <!-- Formulário rápido para adicionar alergia -->
+                                                        <form method="post" action="{% url 'painel_medico' %}" class="row g-2 mt-3 pt-3 border-top">
+                                                            {% csrf_token %}
+                                                            <input type="hidden" name="acao" value="adicionar_alergia">
+                                                            <input type="hidden" name="prontuario_id" value="{{ consulta.paciente.prontuario.id }}">
+                                                            <div class="col-sm-9">
+                                                                <input type="text" class="form-control form-control-sm" name="alergia" placeholder="Nova alergia a reportar..." required>
+                                                            </div>
+                                                            <div class="col-sm-3">
+                                                                <button type="submit" class="btn btn-outline-danger btn-sm w-100">Adicionar Alergia</button>
+                                                            </div>
+                                                        </form>
+                                                    </div>
+                                                </div>
+                                                <div class="modal-footer">
+                                                    <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Fechar</button>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    {% if consulta.status == 'AGENDADA' %}
+                                    <!-- Modal: Finalizar Atendimento -->
+                                    <div class="modal fade text-start" id="modalFinalizar{{ consulta.id }}" tabindex="-1" aria-hidden="true">
+                                        <div class="modal-dialog">
+                                            <div class="modal-content">
+                                                <form method="post" action="{% url 'painel_medico' %}">
+                                                    {% csrf_token %}
+                                                    <input type="hidden" name="acao" value="finalizar_atendimento">
+                                                    <input type="hidden" name="consulta_id" value="{{ consulta.id }}">
+                                                    <div class="modal-header">
+                                                        <h5 class="modal-title">Finalizar Atendimento - {{ consulta.paciente.nome }}</h5>
+                                                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fechar"></button>
+                                                    </div>
+                                                    <div class="modal-body">
+                                                        <div class="mb-3 text-start">
+                                                            <label for="diagnostico{{ consulta.id }}" class="form-label fw-semibold">Diagnóstico *</label>
+                                                            <textarea class="form-control" id="diagnostico{{ consulta.id }}" name="diagnostico" rows="3" required placeholder="Descreva o diagnóstico do paciente..."></textarea>
+                                                        </div>
+                                                        <div class="mb-3 text-start">
+                                                            <label for="prescricao{{ consulta.id }}" class="form-label fw-semibold">Prescrição / Receita *</label>
+                                                            <textarea class="form-control" id="prescricao{{ consulta.id }}" name="prescricao" rows="3" required placeholder="Informe os medicamentos e orientações..."></textarea>
+                                                        </div>
+                                                        <div class="alert alert-info small mb-0">
+                                                            Ao finalizar, esses dados serão gravados automaticamente no prontuário digital UUID do paciente.
+                                                        </div>
+                                                    </div>
+                                                    <div class="modal-footer">
+                                                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                                                        <button type="submit" class="btn btn-success">Salvar e Finalizar</button>
+                                                    </div>
+                                                </form>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    {% endif %}
+                                </td>
+                            </tr>
+                            {% empty %}
+                            <tr>
+                                <td colspan="5" class="text-center py-4 text-muted">
+                                    Nenhuma consulta agendada para o seu perfil no momento.
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
 </div>
 {% endblock %}

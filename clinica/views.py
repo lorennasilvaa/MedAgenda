@@ -2,7 +2,7 @@ from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.contrib.auth.views import LoginView
 from django.shortcuts import redirect, render
-from .models import AdministradorTI, Medico, Recepcionista, UsuarioClinica, Paciente, Consulta
+from .models import AdministradorTI, Medico, Recepcionista, UsuarioClinica, Paciente, Consulta, Prontuario
 
 
 class ClinicaLoginView(LoginView):
@@ -104,7 +104,49 @@ def painel_medico_view(request):
     ator = resolver_perfil_usuario(request.user)
     if not ator.validar_acesso("consulta:visualizar"):
         return render(request, "error/403.html", status=403)
-    return render(request, "usuarios/medico.html", {"ator": ator})
+
+    if request.method == 'POST':
+        acao = request.POST.get('acao')
+        
+        try:
+            if acao == 'finalizar_atendimento':
+                consulta_id = request.POST.get('consulta_id')
+                diagnostico = request.POST.get('diagnostico')
+                prescricao = request.POST.get('prescricao')
+                
+                # garante que a consulta pertence ao médico logado
+                consulta = Consulta.objects.get(pk=consulta_id, medico=ator)
+                
+                # chama o método do model Consulta que atualiza o status e o prontuário
+                consulta.finalizar_atendimento(
+                    medico=ator,
+                    diagnostico=diagnostico,
+                    prescricao=prescricao
+                )
+                messages.success(request, "Atendimento finalizado e prontuário atualizado com sucesso!")
+
+            elif acao == 'adicionar_alergia':
+                prontuario_id = request.POST.get('prontuario_id')
+                alergia = request.POST.get('alergia')
+                
+                prontuario = Prontuario.objects.get(pk=prontuario_id)
+                # chama o método do model Prontuario validando permissão
+                prontuario.adicionar_alergia(usuario=ator, alergia=alergia)
+                messages.success(request, f"Alergia '{alergia}' adicionada com sucesso.")
+
+        except Exception as e:
+            messages.error(request, f"Erro ao processar a solicitação: {e}")
+            
+        return redirect('painel_medico')
+
+    # filtra apenas as consultas destinadas ao médico atual
+    consultas = Consulta.objects.filter(medico=ator).select_related("paciente", "paciente__prontuario").order_by("-data_hora")
+
+    context = {
+        "ator": ator,
+        "consultas": consultas,
+    }
+    return render(request, "usuarios/medico.html", context)
 
 
 @login_required
